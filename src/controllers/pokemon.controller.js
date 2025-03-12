@@ -19,16 +19,19 @@ class PokemonController {
         })
         .then(data => {
             // S'assurer que nous avons un nombre valide pour le total
-            let total;
+            let total = 0;
             if (typeof data.total === 'number') {
                 total = data.total;
             } else if (typeof data.total === 'string') {
                 total = parseInt(data.total);
-            } else if (data.pokemons) {
-                total = data.total_count; // Utilisation d'un champ potentiel total_count
+            } else if (data.total_count !== undefined) {
+                total = data.total_count;
             }
 
-            // Calculer le nombre total de pages qui marche
+            // Vérifier que total est un nombre valide
+            if (isNaN(total)) total = 0;
+
+            // Calculer le nombre total de pages
             const totalPages = Math.ceil(total / itemsPerPage); 
 
             res.status(200).json({
@@ -57,16 +60,17 @@ class PokemonController {
         new Promise((resolve, reject) => {
             PokemonModel.getById(id, (err, results) => {
                 if (err) reject(err);
-                else resolve(results.row);
+                else resolve(results);
             });
         })
         .then(results => {
-            if (results.length === 0) {
+            // Vérifier que results est défini et a une propriété row
+            if (!results || !results.row || results.row.length === 0) {
                 return res.status(404).json({ 
                     erreur: `Pokemon introuvable avec l'id ${id}` 
                 });
             }
-            res.status(200).json(results[0].row);
+            res.status(200).json(results.row[0]);
         })
         .catch(err => {
             console.error("Erreur SQL:", err.code, err.message);
@@ -94,6 +98,11 @@ class PokemonController {
             });
         })
         .then(result => {
+            // Vérifier que result existe et a une propriété insertId
+            if (!result || result.insertId === undefined) {
+                throw new Error("Échec de l'insertion sans message d'erreur");
+            }
+            
             res.status(201).json({
                 message: `Le pokemon ${req.body.nom} a été ajouté avec succès`,
                 pokemon: {
@@ -103,7 +112,7 @@ class PokemonController {
             });
         })
         .catch(err => {
-            console.error("Erreur SQL:", err.code, err.message);
+            console.error("Erreur SQL:", err);
             res.status(500).json({ 
                 erreur: `Echec lors de la création du pokemon ${req.body.nom}` 
             });
@@ -131,11 +140,11 @@ class PokemonController {
         new Promise((resolve, reject) => {
             PokemonModel.getById(id, (err, results) => {
                 if (err) reject(err);
-                else resolve(results.row);
+                else resolve(results);
             });
         })
         .then(results => {
-            if (results.length === 0) {
+            if (!results || !results.row || results.row.length === 0) {
                 return res.status(404).json({ 
                     erreur: `Le pokemon id ${id} n'existe pas dans la base de données` 
                 });
@@ -144,11 +153,16 @@ class PokemonController {
             return new Promise((resolve, reject) => {
                 PokemonModel.update(id, req.body, (err, result) => {
                     if (err) reject(err);
-                    else resolve(result.row);
+                    else resolve(result);
                 });
             });
         })
-        .then(() => {
+        .then(result => {
+            // Vérifier que result existe
+            if (!result) {
+                throw new Error("Échec de la mise à jour sans message d'erreur");
+            }
+            
             res.status(200).json({
                 message: `Le pokemon id ${id} a été modifié avec succès`,
                 pokemon: {
@@ -158,9 +172,9 @@ class PokemonController {
             });
         })
         .catch(err => {
-            console.error("Erreur SQL:", err.code, err.message);
+            console.error("Erreur SQL:", err);
             res.status(500).json({ 
-                erreur: `Echec lors de la modification du pokemon ${req.body.nom}` 
+                erreur: `Echec lors de la modification du pokemon id ${id}` 
             });
         });
     }
@@ -177,11 +191,11 @@ class PokemonController {
         new Promise((resolve, reject) => {
             PokemonModel.getById(id, (err, results) => {
                 if (err) reject(err);
-                else resolve(results.row);
+                else resolve(results);
             });
         })
         .then(results => {
-            if (results.length === 0) {
+            if (!results || !results.row || results.row.length === 0) {
                 throw { status: 404, message: `Le pokemon id ${id} n'existe pas dans la base de données` };
             }
             pokemonToDelete = results.row[0];
@@ -189,21 +203,26 @@ class PokemonController {
             return new Promise((resolve, reject) => {
                 PokemonModel.delete(id, (err, result) => {
                     if (err) reject(err);
-                    else resolve(result.row);
+                    else resolve(result);
                 });
             });
         })
-        .then(() => {
+        .then(result => {
+            // Vérifier que result existe
+            if (!result) {
+                throw new Error("Échec de la suppression sans message d'erreur");
+            }
+            
             res.status(200).json({
                 message: `Le pokemon id ${id} a été supprimé avec succès`,
                 pokemon: pokemonToDelete
             });
         })
-        .catch(err => { //ici on evite la repition d'erreur dans le header qui fait crash le server
+        .catch(err => {
             if (err.status) {
                 res.status(err.status).json({ erreur: err.message });
             } else {
-                console.error("Erreur SQL:", err.code, err.message);
+                console.error("Erreur SQL:", err);
                 res.status(500).json({ 
                     erreur: `Echec lors de la suppression du pokemon id ${id}` 
                 });
